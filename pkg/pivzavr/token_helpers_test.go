@@ -6,6 +6,8 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"math/big"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,6 +37,49 @@ func TestCandidateModulePaths(t *testing.T) {
 	windows := candidateModulePaths("windows", "amd64")
 	require.NotEmpty(t, windows)
 	assert.Equal(t, "libykcs11.so", windows[0])
+}
+
+func TestIsYkcs11Module(t *testing.T) {
+	assert.True(t, isYkcs11Module("/usr/lib/x86_64-linux-gnu/libykcs11.so"))
+	assert.True(t, isYkcs11Module("/usr/lib64/libykcs11.so"))
+	assert.True(t, isYkcs11Module("/opt/homebrew/lib/libykcs11.dylib"))
+	assert.True(t, isYkcs11Module("libykcs11.so"))
+	assert.False(t, isYkcs11Module("/usr/lib/x86_64-linux-gnu/opensc-pkcs11.so"))
+	assert.False(t, isYkcs11Module("/usr/lib/opensc-pkcs11.so"))
+}
+
+func TestFirstExistingModule(t *testing.T) {
+	dir := t.TempDir()
+	yk := filepath.Join(dir, "libykcs11.so")
+	opensc := filepath.Join(dir, "opensc-pkcs11.so")
+	require.NoError(t, os.WriteFile(yk, []byte("ykcs11"), 0o600))
+	require.NoError(t, os.WriteFile(opensc, []byte("opensc"), 0o600))
+
+	path, ok := firstExistingModule([]string{yk, opensc}, false)
+	require.True(t, ok)
+	assert.Equal(t, opensc, path)
+
+	path, ok = firstExistingModule([]string{yk, opensc}, true)
+	require.True(t, ok)
+	assert.Equal(t, yk, path)
+
+	path, ok = firstExistingModule([]string{filepath.Join(dir, "missing.so"), opensc}, false)
+	require.True(t, ok)
+	assert.Equal(t, opensc, path)
+
+	_, ok = firstExistingModule(nil, true)
+	assert.False(t, ok)
+}
+
+func TestUsbVendorPresent(t *testing.T) {
+	dir := t.TempDir()
+	device := filepath.Join(dir, "1-1")
+	require.NoError(t, os.Mkdir(device, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(device, "idVendor"), []byte("1050\n"), 0o600))
+
+	assert.True(t, usbVendorPresent(dir, "1050"))
+	assert.False(t, usbVendorPresent(dir, "1234"))
+	assert.False(t, usbVendorPresent(filepath.Join(dir, "missing"), "1050"))
 }
 
 func TestEncodeECDSASignature(t *testing.T) {

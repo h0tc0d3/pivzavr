@@ -11,6 +11,8 @@ import (
 	"io"
 	"math/big"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -28,6 +30,8 @@ const (
 	// pkcs11ModuleEnv is the environment variable used to select the PKCS#11
 	// module to load.
 	pkcs11ModuleEnv = "PIVZAVR_PKCS11_MODULE"
+	// yubicoVendorID is Yubico's USB vendor ID as reported by sysfs.
+	yubicoVendorID = "1050"
 )
 
 // id returns the CKA_ID value associated with a slot.
@@ -110,27 +114,90 @@ type pkcs11Token struct {
 }
 
 // findModulePath returns the first PIV PKCS#11 module found in the conventional
-// system locations for the current operating system.
+// system locations for the current operating system. The YubiKey PKCS#11 module
+// is only considered when a YubiKey device is present.
 func findModulePath() (string, error) {
-	for _, path := range candidateModulePaths(runtime.GOOS, runtime.GOARCH) {
+	path, ok := firstExistingModule(candidateModulePaths(runtime.GOOS, runtime.GOARCH), yubiKeyPresent())
+	if !ok {
+		return "", fmt.Errorf(
+			"PKCS#11 module not found for %s/%s (set %s to override)",
+			runtime.GOOS, runtime.GOARCH, pkcs11ModuleEnv,
+		)
+	}
+	return path, nil
+}
+
+// firstExistingModule returns the first path in candidates that exists as a
+// regular file. YubiKey module paths are skipped when yubiKeyPresent is false.
+func firstExistingModule(candidates []string, yubiKeyPresent bool) (string, bool) {
+	for _, path := range candidates {
+		if !yubiKeyPresent && isYkcs11Module(path) {
+			continue
+		}
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			return path, nil
+			return path, true
 		}
 	}
+	return "", false
+}
 
-	return "", fmt.Errorf(
-		"PKCS#11 module not found for %s/%s (set %s to override)",
-		runtime.GOOS, runtime.GOARCH, pkcs11ModuleEnv,
-	)
+// isYkcs11Module reports whether path refers to the YubiKey PKCS#11 module.
+func isYkcs11Module(path string) bool {
+	base := filepath.Base(path)
+	return strings.HasPrefix(base, "libykcs11") || strings.HasPrefix(base, "ykcs11")
+}
+
+// yubiKeyPresent reports whether a YubiKey device is currently attached to the
+// system. YubiKeys identify themselves with Yubico's USB vendor ID (0x1050).
+func yubiKeyPresent() bool {
+	switch runtime.GOOS {
+	case "linux":
+		return usbVendorPresent("/sys/bus/usb/devices", yubicoVendorID)
+	case "darwin":
+		return darwinYubiKeyPresent()
+	default:
+		return false
+	}
+}
+
+// usbVendorPresent reports whether any device directory under dir exposes the
+// given USB vendor ID in its idVendor sysfs attribute.
+func usbVendorPresent(dir, vendorID string) bool {
+	matches, err := filepath.Glob(filepath.Join(dir, "*", "idVendor"))
+	if err != nil {
+		return false
+	}
+	for _, path := range matches {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if strings.TrimSpace(string(data)) == vendorID {
+			return true
+		}
+	}
+	return false
+}
+
+// darwinYubiKeyPresent reports whether a YubiKey is attached by querying the
+// I/O Registry with ioreg.
+func darwinYubiKeyPresent() bool {
+	out, err := exec.Command("ioreg", "-p", "IOUSB", "-l", "-w", "0").Output()
+	if err != nil {
+		return false
+	}
+	// ioreg prints USB vendor IDs in decimal by default.
+	return strings.Contains(string(out), `"idVendor" = 1050`) ||
+		strings.Contains(string(out), `"idVendor" = 0x1050`)
 }
 
 // candidateModulePaths returns the conventional PIV PKCS#11 module paths for
 // the given operating system and architecture, ordered by likelihood.
 //
-// The YubiKey PKCS#11 module (ykcs11) is preferred over OpenSC. OpenSC only
-// discovers retired key-management slots from the card's key-history object,
-// which YubiKeys do not implement, so retired slots are only addressable
-// through ykcs11.
+// The YubiKey PKCS#11 module (ykcs11) is listed before OpenSC so it is
+// preferred when a YubiKey is present. OpenSC only discovers retired
+// key-management slots from the card's key-history object, which YubiKeys do
+// not implement, so retired slots are only addressable through ykcs11.
 func candidateModulePaths(goos, goarch string) []string {
 	paths := make([]string, 0, 16)
 	add := func(p string) { paths = append(paths, p) }
