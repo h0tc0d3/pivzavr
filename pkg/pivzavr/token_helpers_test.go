@@ -71,15 +71,32 @@ func TestFirstExistingModule(t *testing.T) {
 	assert.False(t, ok)
 }
 
-func TestUsbVendorPresent(t *testing.T) {
-	dir := t.TempDir()
-	device := filepath.Join(dir, "1-1")
-	require.NoError(t, os.Mkdir(device, 0o700))
+func TestSysfsVendorPresent(t *testing.T) {
+	relDir := filepath.Join("bus", "usb", "devices")
+
+	root := t.TempDir()
+	device := filepath.Join(root, relDir, "1-1")
+	require.NoError(t, os.MkdirAll(device, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(device, "idVendor"), []byte("1050\n"), 0o600))
 
-	assert.True(t, usbVendorPresent(dir, "1050"))
-	assert.False(t, usbVendorPresent(dir, "1234"))
-	assert.False(t, usbVendorPresent(filepath.Join(dir, "missing"), "1050"))
+	assert.True(t, sysfsVendorPresent(root, relDir, "1050"))
+	assert.False(t, sysfsVendorPresent(root, relDir, "1234"))
+	assert.False(t, sysfsVendorPresent(filepath.Join(root, "missing"), relDir, "1050"))
+
+	// sysfs exposes each USB device under /sys/bus/usb/devices as a symlink
+	// that resolves inside /sys, so the vendor scan must follow those links.
+	symlinkRoot := t.TempDir()
+	devicesDir := filepath.Join(symlinkRoot, relDir)
+	targetDir := filepath.Join(symlinkRoot, "devices", "usb1", "1-1")
+	require.NoError(t, os.MkdirAll(devicesDir, 0o700))
+	require.NoError(t, os.MkdirAll(targetDir, 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(targetDir, "idVendor"), []byte("1050\n"), 0o600))
+	require.NoError(t, os.Symlink(
+		filepath.Join("..", "..", "..", "devices", "usb1", "1-1"),
+		filepath.Join(devicesDir, "1-1"),
+	))
+
+	assert.True(t, sysfsVendorPresent(symlinkRoot, relDir, "1050"))
 }
 
 func TestEncodeECDSASignature(t *testing.T) {

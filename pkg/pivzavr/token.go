@@ -152,7 +152,7 @@ func isYkcs11Module(path string) bool {
 func yubiKeyPresent() bool {
 	switch runtime.GOOS {
 	case "linux":
-		return usbVendorPresent("/sys/bus/usb/devices", yubicoVendorID)
+		return sysfsVendorPresent("/sys", "bus/usb/devices", yubicoVendorID)
 	case "darwin":
 		return darwinYubiKeyPresent()
 	default:
@@ -160,15 +160,29 @@ func yubiKeyPresent() bool {
 	}
 }
 
-// usbVendorPresent reports whether any device directory under dir exposes the
-// given USB vendor ID in its idVendor sysfs attribute.
-func usbVendorPresent(dir, vendorID string) bool {
-	matches, err := filepath.Glob(filepath.Join(dir, "*", "idVendor"))
+// sysfsVendorPresent reports whether any device directory under root/relDir
+// exposes the given USB vendor ID in its idVendor attribute. File access is
+// scoped to root using os.Root, which also resolves the device symlinks used
+// by sysfs.
+func sysfsVendorPresent(rootPath, relDir, vendorID string) bool {
+	root, err := os.OpenRoot(rootPath)
 	if err != nil {
 		return false
 	}
-	for _, path := range matches {
-		data, err := os.ReadFile(path)
+	defer func() { _ = root.Close() }()
+
+	dir, err := root.Open(relDir)
+	if err != nil {
+		return false
+	}
+	entries, err := dir.ReadDir(-1)
+	_ = dir.Close()
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		data, err := root.ReadFile(filepath.Join(relDir, entry.Name(), "idVendor"))
 		if err != nil {
 			continue
 		}
