@@ -8,12 +8,32 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"fmt"
 	"math/big"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// nilParamsCurve is an elliptic.Curve whose Params method returns nil, used to
+// verify that CertKeyType handles curves without parameters gracefully.
+type nilParamsCurve struct{}
+
+func (nilParamsCurve) Params() *elliptic.CurveParams { return nil }
+func (nilParamsCurve) IsOnCurve(x, y *big.Int) bool  { return false }
+func (nilParamsCurve) Add(x1, y1, x2, y2 *big.Int) (x, y *big.Int) {
+	return nil, nil
+}
+func (nilParamsCurve) Double(x1, y1 *big.Int) (x, y *big.Int) {
+	return nil, nil
+}
+func (nilParamsCurve) ScalarMult(x1, y1 *big.Int, k []byte) (x, y *big.Int) {
+	return nil, nil
+}
+func (nilParamsCurve) ScalarBaseMult(k []byte) (x, y *big.Int) {
+	return nil, nil
+}
 
 func TestFormatCertificate(t *testing.T) {
 	tok, err := testToken()
@@ -34,8 +54,8 @@ func TestFormatCertificate(t *testing.T) {
 	formatted := FormatCertificate(output)
 	assert.Contains(t, formatted, "Slot:          9c (Digital Signature)")
 	assert.Contains(t, formatted, "Fingerprint:   "+output.Fingerprint)
-	assert.Contains(t, formatted, "Serial Number: "+output.Certificate.SerialNumber.String())
-	assert.Contains(t, formatted, "Key Type:      ECDSA P-384")
+	assert.Contains(t, formatted, "Serial Number: "+fmt.Sprintf("%x", output.Certificate.SerialNumber))
+	assert.Contains(t, formatted, "Key Type:      ECDSA NIST P-384")
 	assert.Contains(t, formatted, "Not Before:    ")
 	assert.Contains(t, formatted, "Not After:     ")
 	assert.Contains(t, formatted, "Subject DN:    CN=pivzavr test")
@@ -92,9 +112,64 @@ func TestCertKeyType(t *testing.T) {
 			want: "RSA 2048",
 		},
 		{
+			name: "ECDSA P-224",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: elliptic.P224()}},
+			want: "ECDSA NIST P-224",
+		},
+		{
 			name: "ECDSA P-256",
 			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: elliptic.P256()}},
-			want: "ECDSA P-256",
+			want: "ECDSA NIST P-256",
+		},
+		{
+			name: "ECDSA P-384",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: elliptic.P384()}},
+			want: "ECDSA NIST P-384",
+		},
+		{
+			name: "ECDSA P-521",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: elliptic.P521()}},
+			want: "ECDSA NIST P-521",
+		},
+		{
+			name: "ECDSA SECG secp256r1",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: &elliptic.CurveParams{Name: "secp256r1"}}},
+			want: "ECDSA SECG secp256r1",
+		},
+		{
+			name: "ECDSA SECG secp256k1",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: &elliptic.CurveParams{Name: "secp256k1"}}},
+			want: "ECDSA SECG secp256k1",
+		},
+		{
+			name: "ECDSA SECG sect283k1",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: &elliptic.CurveParams{Name: "sect283k1"}}},
+			want: "ECDSA SECG sect283k1",
+		},
+		{
+			name: "ECDSA Brainpool brainpoolP256r1",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: &elliptic.CurveParams{Name: "brainpoolP256r1"}}},
+			want: "ECDSA Brainpool brainpoolP256r1",
+		},
+		{
+			name: "ECDSA Brainpool brainpoolP384r1",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: &elliptic.CurveParams{Name: "brainpoolP384r1"}}},
+			want: "ECDSA Brainpool brainpoolP384r1",
+		},
+		{
+			name: "ECDSA Brainpool brainpoolP512r1",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: &elliptic.CurveParams{Name: "brainpoolP512r1"}}},
+			want: "ECDSA Brainpool brainpoolP512r1",
+		},
+		{
+			name: "ECDSA unknown curve name",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: &elliptic.CurveParams{Name: "prime256v1"}}},
+			want: "ECDSA prime256v1",
+		},
+		{
+			name: "ECDSA with nil curve params",
+			cert: &x509.Certificate{PublicKey: &ecdsa.PublicKey{Curve: nilParamsCurve{}}},
+			want: "ECDSA",
 		},
 		{
 			name: "ECDSA without curve",

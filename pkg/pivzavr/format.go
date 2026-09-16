@@ -3,6 +3,7 @@ package pivzavr
 import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -22,10 +23,10 @@ func FormatCertificate(output *CertificateOutput) string {
 	fmt.Fprintf(&b, "Fingerprint:   %s\n", output.Fingerprint)
 	if output.Certificate != nil {
 		cert := output.Certificate
-		fmt.Fprintf(&b, "Serial Number: %s\n", cert.SerialNumber.String())
+		fmt.Fprintf(&b, "Serial Number: %x\n", cert.SerialNumber)
 		fmt.Fprintf(&b, "Key Type:      %s\n", CertKeyType(cert))
 		fmt.Fprintf(&b, "Not Before:    %s\n", cert.NotBefore.UTC().Format("2006-01-02 15:04:05 MST"))
-		fmt.Fprintf(&b, "Not After:     %s\n\n", cert.NotAfter.UTC().Format("2006-01-02 15:04:05 MST"))
+		fmt.Fprintf(&b, "Not After:     %s\n", cert.NotAfter.UTC().Format("2006-01-02 15:04:05 MST"))
 		fmt.Fprintf(&b, "Subject DN:    %s\n", formatName(cert.Subject))
 		fmt.Fprintf(&b, "Issuer DN:     %s\n\n", formatName(cert.Issuer))
 	}
@@ -35,14 +36,16 @@ func FormatCertificate(output *CertificateOutput) string {
 }
 
 // CertKeyType returns a human-readable description of the certificate's key
-// type (e.g. "RSA 2048", "ECDSA P-256", "Ed25519").
+// type (e.g. "RSA 2048", "ECDSA NIST P-256", "Ed25519").
 func CertKeyType(cert *x509.Certificate) string {
 	switch pub := cert.PublicKey.(type) {
 	case *rsa.PublicKey:
 		return fmt.Sprintf("RSA %d", pub.N.BitLen())
 	case *ecdsa.PublicKey:
 		if pub.Curve != nil {
-			return fmt.Sprintf("ECDSA %s", pub.Curve.Params().Name)
+			if curve := ecdsaCurveName(pub.Curve); curve != "" {
+				return fmt.Sprintf("ECDSA %s", curve)
+			}
 		}
 		return "ECDSA"
 	case ed25519.PublicKey:
@@ -61,6 +64,31 @@ func CertKeyType(cert *x509.Certificate) string {
 	}
 
 	return "Unknown"
+}
+
+// ecdsaCurveName returns a human-readable name for an ECDSA curve, prefixed
+// with the standard that defines it. NIST curves from FIPS 186 are rendered
+// as "NIST P-256", SECG curves from SEC 2 as "SECG secp256r1", and Brainpool
+// curves from RFC 5639 as "Brainpool brainpoolP256r1". Curves that do not
+// match a known family keep their reported name unchanged.
+func ecdsaCurveName(curve elliptic.Curve) string {
+	params := curve.Params()
+	if params == nil {
+		return ""
+	}
+
+	switch params.Name {
+	case "P-224", "P-256", "P-384", "P-521":
+		return "NIST " + params.Name
+	}
+
+	if strings.HasPrefix(params.Name, "secp") || strings.HasPrefix(params.Name, "sect") {
+		return "SECG " + params.Name
+	}
+	if strings.HasPrefix(params.Name, "brainpool") {
+		return "Brainpool " + params.Name
+	}
+	return params.Name
 }
 
 // oidNames maps distinguished-name attribute OIDs to their conventional

@@ -7,15 +7,16 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/twpayne/go-pinentry/v4"
 )
 
-// CertHexFingerprint returns the SHA3-256 checksum of a certificate's raw bytes
+// CertHexFingerprint returns checksum of a certificate's raw bytes
 func CertHexFingerprint(certificate *x509.Certificate) string {
 	fpr := sha3.Sum256(certificate.Raw)
-	return hex.EncodeToString(fpr[:])
+	return strings.ToUpper(hex.EncodeToString(fpr[:16]))
 }
 
 // GetPin prompts the user for a PIN

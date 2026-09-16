@@ -93,7 +93,7 @@ DklnGaJUyq5Mp98Gam51m9i4616VmkODloxROWIeHUZbQ8XwWBsaRMf7rdu/RsSo
 	if err != nil {
 		t.Fatal(err)
 	}
-	expectedFingerprint := "0b280e1bfffcc81bafd74e50f3ee7559bbd54624"
+	expectedFingerprint := "D52DC5E5378F65423B858B64FFD3828B"
 	fingerprint := CertHexFingerprint(cert)
 	assert.Equal(t, expectedFingerprint, fingerprint)
 }
