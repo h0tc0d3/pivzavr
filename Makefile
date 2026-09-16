@@ -36,9 +36,12 @@ release: pivzavr
 test: pivzavr
 	(\
 	set -e ;\
-	go test -coverprofile=cover.out ./pkg/... ;\
+	go test -coverprofile=cover.out ./... ;\
 	file pivzavr ;\
 	./pivzavr --help 2> /dev/null ;\
+	golangci-lint run ./... ;\
+	govulncheck ./... ;\
+	gosec ./... ;\
 	)
 
 #
