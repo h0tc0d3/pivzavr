@@ -1,0 +1,7 @@
+/pivzavr
+build
+.DS_Store
+result
+*~
+/cover.out
+.vscode
