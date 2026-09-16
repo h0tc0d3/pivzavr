@@ -3,6 +3,8 @@ package pivzavr
 import (
 	"bytes"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"io"
 	"strings"
@@ -32,6 +34,13 @@ type SignOpts struct {
 }
 
 const signedMessagePemHeader = "SIGNED MESSAGE"
+
+// emailAttributeOIDs are the distinguished-name attribute OIDs that carry an
+// email address: PKCS#9 emailAddress and RFC 4519 mail.
+var emailAttributeOIDs = []asn1.ObjectIdentifier{
+	{1, 2, 840, 113549, 1, 9, 1},
+	{0, 9, 2342, 19200300, 100, 1, 3},
+}
 
 // Sign creates a digital signature from the given data in SignOpts.Message
 func Sign(tok Pivzavr, opts *SignOpts) ([]byte, error) {
@@ -160,5 +169,29 @@ func certificateContainsEmail(certificate *x509.Certificate, email string) bool 
 		}
 	}
 
+	return nameContainsEmail(certificate.Subject, email) || nameContainsEmail(certificate.Issuer, email)
+}
+
+// nameContainsEmail reports whether a distinguished name contains an email
+// attribute that matches email.
+func nameContainsEmail(name pkix.Name, email string) bool {
+	for _, atvs := range [][]pkix.AttributeTypeAndValue{name.Names, name.ExtraNames} {
+		for _, atv := range atvs {
+			if isEmailAttribute(atv.Type) && strings.EqualFold(attributeValue(atv.Value), email) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// isEmailAttribute reports whether oid is a distinguished-name attribute that
+// carries an email address.
+func isEmailAttribute(oid asn1.ObjectIdentifier) bool {
+	for _, emailOID := range emailAttributeOIDs {
+		if oid.Equal(emailOID) {
+			return true
+		}
+	}
 	return false
 }

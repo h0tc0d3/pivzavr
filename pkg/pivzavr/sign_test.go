@@ -3,6 +3,8 @@ package pivzavr
 import (
 	"bytes"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/pem"
 	"errors"
 	"os"
@@ -174,15 +176,56 @@ func TestCertificateContainsUserId(t *testing.T) {
 	assert.NoError(t, certificateContainsUserId(emailCert, "user@example.com"))
 	assert.NoError(t, certificateContainsUserId(emailCert, "Full Name <user@example.com>"))
 	assert.Error(t, certificateContainsUserId(emailCert, "other@example.com"))
+
+	dnEmailCert := &x509.Certificate{
+		Subject: pkix.Name{Names: []pkix.AttributeTypeAndValue{
+			{Type: asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}, Value: "dn@example.com"},
+		}},
+	}
+	assert.NoError(t, certificateContainsUserId(dnEmailCert, "dn@example.com"))
+	assert.Error(t, certificateContainsUserId(dnEmailCert, "other@example.com"))
 }
 
 func TestCertificateContainsEmail(t *testing.T) {
+	emailOID := asn1.ObjectIdentifier{1, 2, 840, 113549, 1, 9, 1}
+	mailOID := asn1.ObjectIdentifier{0, 9, 2342, 19200300, 100, 1, 3}
+
 	cert := &x509.Certificate{EmailAddresses: []string{"User@Example.com"}}
 
 	assert.True(t, certificateContainsEmail(cert, "user@example.com"))
 	assert.True(t, certificateContainsEmail(cert, "USER@EXAMPLE.COM"))
 	assert.False(t, certificateContainsEmail(cert, "other@example.com"))
 	assert.False(t, certificateContainsEmail(&x509.Certificate{}, "user@example.com"))
+
+	subjectEmail := &x509.Certificate{
+		Subject: pkix.Name{Names: []pkix.AttributeTypeAndValue{
+			{Type: emailOID, Value: "subject@example.com"},
+		}},
+	}
+	assert.True(t, certificateContainsEmail(subjectEmail, "SUBJECT@example.com"))
+	assert.False(t, certificateContainsEmail(subjectEmail, "other@example.com"))
+
+	issuerEmail := &x509.Certificate{
+		Issuer: pkix.Name{Names: []pkix.AttributeTypeAndValue{
+			{Type: emailOID, Value: "issuer@example.com"},
+		}},
+	}
+	assert.True(t, certificateContainsEmail(issuerEmail, "issuer@example.com"))
+	assert.False(t, certificateContainsEmail(issuerEmail, "other@example.com"))
+
+	extraNamesEmail := &x509.Certificate{
+		Subject: pkix.Name{ExtraNames: []pkix.AttributeTypeAndValue{
+			{Type: emailOID, Value: []byte("extra@example.com")},
+		}},
+	}
+	assert.True(t, certificateContainsEmail(extraNamesEmail, "extra@example.com"))
+
+	mailEmail := &x509.Certificate{
+		Subject: pkix.Name{Names: []pkix.AttributeTypeAndValue{
+			{Type: mailOID, Value: "mail@example.com"},
+		}},
+	}
+	assert.True(t, certificateContainsEmail(mailEmail, "mail@example.com"))
 }
 
 type errReader struct{}
