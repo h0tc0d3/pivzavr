@@ -48,7 +48,7 @@ func GetPin(_ io.Reader) (string, error) {
 	}
 
 	if !validPIN(pin) {
-		return "", fmt.Errorf("PIN must be 6-8 digits long")
+		return "", errors.New("PIN must be 6-8 digits long.")
 	}
 
 	return pin, nil
@@ -58,6 +58,11 @@ func GetPin(_ io.Reader) (string, error) {
 func validPIN(pin string) bool {
 	if len(pin) < 6 || len(pin) > 8 {
 		return false
+	}
+	for i := 0; i < len(pin); i++ {
+		if pin[i] < '0' || pin[i] > '9' {
+			return false
+		}
 	}
 	return true
 }

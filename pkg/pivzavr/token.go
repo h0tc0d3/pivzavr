@@ -109,6 +109,9 @@ func (s Slot) id() ([]byte, error) {
 type pkcs11Token struct {
 	ctx    *pkcs11.Ctx
 	slotID uint
+	// ykcs11 reports whether the loaded module is the YubiKey PKCS#11 module,
+	// which packs the firmware version differently from other modules.
+	ykcs11 bool
 }
 
 // findModulePath returns the first PIV PKCS#11 module found in the conventional
@@ -143,6 +146,20 @@ func firstExistingModule(candidates []string, yubiKeyPresent bool) (string, bool
 func isYkcs11Module(path string) bool {
 	base := filepath.Base(path)
 	return strings.HasPrefix(base, "libykcs11") || strings.HasPrefix(base, "ykcs11")
+}
+
+// formatFirmwareVersion renders the firmware version reported by a PKCS#11
+// module in its CK_VERSION form.
+//
+// ykcs11 packs the YubiKey firmware version major.minor.patch into CK_VERSION as
+// major = major and minor = minor*10 + patch, so firmware 5.7.4 is reported as
+// major 5, minor 74. For that module the minor byte is split back into its two
+// components; other modules report the version components directly.
+func formatFirmwareVersion(major, minor byte, ykcs11 bool) string {
+	if ykcs11 {
+		return fmt.Sprintf("%d.%d.%d", major, minor/10, minor%10)
+	}
+	return fmt.Sprintf("%d.%d", major, minor)
 }
 
 // yubiKeyPresent reports whether a YubiKey device is currently attached to the
@@ -257,33 +274,36 @@ func candidateModulePaths(goos, goarch string) []string {
 }
 
 // openContext loads the configured PKCS#11 module and initializes it. The
-// caller owns the returned context and must release it with Destroy.
-func openContext() (*pkcs11.Ctx, error) {
+// caller owns the returned context and must release it with Destroy. The module
+// path is returned as well so callers can tell which PKCS#11 implementation was
+// loaded.
+func openContext() (*pkcs11.Ctx, string, error) {
 	module, err := resolvePKCS11Module()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	ctx := pkcs11.New(module)
 	if ctx == nil {
-		return nil, errors.Errorf("Failed to load PKCS#11 module %q.", module)
+		return nil, "", errors.Errorf("Failed to load PKCS#11 module %q.", module)
 	}
 
 	if err := ctx.Initialize(); err != nil {
 		ctx.Destroy()
-		return nil, errors.Wrapf(err, "Initialize PKCS#11 module %q", module)
+		return nil, "", errors.Wrapf(err, "Initialize PKCS#11 module %q", module)
 	}
-	return ctx, nil
+	return ctx, module, nil
 }
 
 // TokenHandleWithSerial returns a handle to the token in the slot matching
 // serial. If serial is empty, the token is returned only if exactly one token
 // is present.
 func TokenHandleWithSerial(serial string) (Pivzavr, error) {
-	ctx, err := openContext()
+	ctx, module, err := openContext()
 	if err != nil {
 		return nil, err
 	}
+	ykcs11 := isYkcs11Module(module)
 
 	// Ensure the module is released on every error path. On success, ownership
 	// transfers to the returned token, which releases it in Close.
@@ -307,7 +327,7 @@ func TokenHandleWithSerial(serial string) (Pivzavr, error) {
 			return nil, errors.New("Multiple smart cards found but no serial specified.")
 		}
 		owned = false
-		return &pkcs11Token{ctx: ctx, slotID: slots[0]}, nil
+		return &pkcs11Token{ctx: ctx, slotID: slots[0], ykcs11: ykcs11}, nil
 	}
 
 	for _, slot := range slots {
@@ -317,7 +337,7 @@ func TokenHandleWithSerial(serial string) (Pivzavr, error) {
 		}
 		if strings.TrimSpace(info.SerialNumber) == serial {
 			owned = false
-			return &pkcs11Token{ctx: ctx, slotID: slot}, nil
+			return &pkcs11Token{ctx: ctx, slotID: slot, ykcs11: ykcs11}, nil
 		}
 	}
 
@@ -327,11 +347,12 @@ func TokenHandleWithSerial(serial string) (Pivzavr, error) {
 // DeviceInfos returns identification data for every smart card currently
 // present, in the order reported by the PKCS#11 module.
 func DeviceInfos() ([]*DeviceInfo, error) {
-	ctx, err := openContext()
+	ctx, module, err := openContext()
 	if err != nil {
 		return nil, err
 	}
 	defer ctx.Destroy()
+	ykcs11 := isYkcs11Module(module)
 
 	slots, err := ctx.GetSlotList(true)
 	if err != nil {
@@ -343,7 +364,7 @@ func DeviceInfos() ([]*DeviceInfo, error) {
 
 	infos := make([]*DeviceInfo, 0, len(slots))
 	for _, slotID := range slots {
-		tok := &pkcs11Token{ctx: ctx, slotID: slotID}
+		tok := &pkcs11Token{ctx: ctx, slotID: slotID, ykcs11: ykcs11}
 		info, err := tok.Info()
 		if err != nil {
 			return nil, err
@@ -363,7 +384,7 @@ func (t *pkcs11Token) Info() (*DeviceInfo, error) {
 
 	info := &DeviceInfo{
 		Name:            strings.TrimSpace(ti.Label),
-		FirmwareVersion: fmt.Sprintf("%d.%d", ti.FirmwareVersion.Major, ti.FirmwareVersion.Minor),
+		FirmwareVersion: formatFirmwareVersion(ti.FirmwareVersion.Major, ti.FirmwareVersion.Minor, t.ykcs11),
 		SerialNumber:    strings.TrimSpace(ti.SerialNumber),
 	}
 	if value, ok := t.dataObject("Card Holder Unique Identifier", "CHUID"); ok {

@@ -130,9 +130,15 @@ func TestValidPIN(t *testing.T) {
 		{"", false},
 		{"12345", false},
 		{"123456", true},
+		{"000000", true},
 		{"1234567", true},
 		{"12345678", true},
 		{"123456789", false},
+		{"abcdef", false},
+		{"12345a", false},
+		{"12 456", false},
+		{"+123456", false},
+		{"\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16", false},
 	}
 
 	for _, tc := range testCases {

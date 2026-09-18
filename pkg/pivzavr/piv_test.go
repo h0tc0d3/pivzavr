@@ -83,3 +83,33 @@ func TestFormatRetries(t *testing.T) {
 	assert.Equal(t, "0", formatRetries(0))
 	assert.Equal(t, "(unavailable)", formatRetries(RetriesUnknown))
 }
+
+func TestCoalesceRetries(t *testing.T) {
+	t.Run("both readable", func(t *testing.T) {
+		pin, puk, ok := coalesceRetries(3, true, 2, true)
+		assert.True(t, ok)
+		assert.Equal(t, 3, pin)
+		assert.Equal(t, 2, puk)
+	})
+
+	t.Run("only PUK readable", func(t *testing.T) {
+		pin, puk, ok := coalesceRetries(0, false, 2, true)
+		assert.True(t, ok)
+		assert.Equal(t, RetriesUnknown, pin)
+		assert.Equal(t, 2, puk)
+	})
+
+	t.Run("only PIN readable", func(t *testing.T) {
+		pin, puk, ok := coalesceRetries(3, true, 0, false)
+		assert.True(t, ok)
+		assert.Equal(t, 3, pin)
+		assert.Equal(t, RetriesUnknown, puk)
+	})
+
+	t.Run("neither readable", func(t *testing.T) {
+		pin, puk, ok := coalesceRetries(0, false, 0, false)
+		assert.False(t, ok)
+		assert.Equal(t, RetriesUnknown, pin)
+		assert.Equal(t, RetriesUnknown, puk)
+	})
+}

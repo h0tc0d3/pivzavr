@@ -22,7 +22,7 @@ func runCommand() error {
 	signFlag := getopt.BoolLong("sign", 's', "make a signature")
 	verifyFlag := getopt.BoolLong("verify", 0, "verify a signature")
 	resetFlag := getopt.BoolLong("reset", 'r', "resets the smart card PIV applet and sets new PIN, random PUK, and PIN derived management key")
-	slot := getopt.StringLong("slot", 'w', "9c", "choose a PIV slot by key reference (9a-9e, 82-95, 9b, f9), defaults to PIV slot 9c", "slot")
+	slot := getopt.StringLong("slot", 'w', "9c", "choose a PIV slot by key reference (9a-9e, 82-95, f9), defaults to PIV slot 9c", "slot")
 	printFlag := getopt.BoolLong("print", 'p', "prints the certificate with its fingerprint and details")
 	infoFlag := getopt.BoolLong("info", 'i', "print device information and active PIV slots")
 

@@ -143,7 +143,7 @@ For example:
 
 ```text
 Name:        YubiKey PIV #00000000
-Firmware:    5.4
+Firmware:    5.4.3
 Serial:      00000000
 CHUID:       53304215D4E739...
 CCC:         53304215F0000000...
@@ -250,7 +250,7 @@ rawjJAYeN4p6QyQnO2HZgaENjrzCgOQ7aII=
 -----END CERTIFICATE-----
 ```
 
-The certificate's fingerprint is calculated by performing a SHA3-256 checksum on the raw certificate bytes and then encoding the checksum as a hex string.
+The certificate's fingerprint is calculated by performing a SHA3-256 checksum on the raw certificate bytes and then encoding the first 16 bytes (128 bits) of the checksum as an upper-case hex string.
 
 Use the certificate fingerprint to tell Git which certificate to use when signing commits and tags:
 

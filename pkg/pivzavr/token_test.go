@@ -111,3 +111,24 @@ func TestLabelMatches(t *testing.T) {
 	assert.True(t, labelMatches("chuid", labels))
 	assert.False(t, labelMatches("Card Capability Container", labels))
 }
+
+func TestFormatFirmwareVersion(t *testing.T) {
+	testCases := []struct {
+		name   string
+		major  byte
+		minor  byte
+		ykcs11 bool
+		want   string
+	}{
+		{name: "ykcs11 5.7.4", major: 5, minor: 74, ykcs11: true, want: "5.7.4"},
+		{name: "ykcs11 5.4.3", major: 5, minor: 43, ykcs11: true, want: "5.4.3"},
+		{name: "ykcs11 5.2.0", major: 5, minor: 20, ykcs11: true, want: "5.2.0"},
+		{name: "other module", major: 5, minor: 74, ykcs11: false, want: "5.74"},
+		{name: "other module plain", major: 1, minor: 2, ykcs11: false, want: "1.2"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, formatFirmwareVersion(tc.major, tc.minor, tc.ykcs11))
+		})
+	}
+}

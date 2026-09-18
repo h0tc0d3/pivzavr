@@ -23,8 +23,10 @@ type VerifyOpts struct {
 	Slot Slot
 }
 
-// VerifySignature verifies digital signatures.
-// If the given signature is detached, then read the message associated with the signature form VerifyOpts.Message
+// VerifySignature verifies a digital signature.
+//
+// When the signature is detached, the signed message is read from
+// VerifyOpts.Message.
 func VerifySignature(tok Pivzavr, opts *VerifyOpts) error {
 	EmitNewSign()
 
@@ -71,20 +73,7 @@ func verifyAttached(tok Pivzavr, sd *SignedData, slot Slot) error {
 		return errors.Wrap(err, "Verify signature")
 	}
 
-	var (
-		cert = chains[0][0][0]
-		fpr  = CertHexFingerprint(cert)
-	)
-
-	_, _ = fmt.Fprintf(os.Stdout, "Signature made using certificate ID 0x%s\n", fpr)
-	EmitGoodSig(chains)
-
-	// TODO: Maybe split up signature checking and certificate checking so we can
-	// output something more meaningful.
-	_, _ = fmt.Fprintf(os.Stdout, "Good signature from \"%s\"\n", formatName(cert.Subject))
-	EmitTrustFully()
-
-	return nil
+	return reportVerifiedSignature(chains)
 }
 
 func verifyDetached(tok Pivzavr, sd *SignedData, data io.Reader, slot Slot) error {
@@ -101,11 +90,19 @@ func verifyDetached(tok Pivzavr, sd *SignedData, data io.Reader, slot Slot) erro
 		return errors.Wrap(err, "Failed to verify signature")
 	}
 
-	var (
-		cert = chains[0][0][0]
-		fpr  = CertHexFingerprint(cert)
-	)
+	return reportVerifiedSignature(chains)
+}
 
+// reportVerifiedSignature prints the outcome of a successful verification and
+// emits the corresponding GPG status lines.
+func reportVerifiedSignature(chains [][][]*x509.Certificate) error {
+	cert := leafCertificate(chains)
+	if cert == nil {
+		EmitErrSig()
+		return errors.New("Verified signature without a signer certificate.")
+	}
+
+	fpr := CertHexFingerprint(cert)
 	_, _ = fmt.Fprintf(os.Stdout, "Signature made using certificate ID 0x%s\n", fpr)
 	EmitGoodSig(chains)
 

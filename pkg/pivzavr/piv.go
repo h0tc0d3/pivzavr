@@ -98,10 +98,21 @@ func cardRetries(card *scard.Card, chuid string) (int, int, bool) {
 
 	pin, okPIN := queryRetries(card, pinRef)
 	puk, okPUK := queryRetries(card, pukRef)
-	if !okPIN && !okPUK {
-		return RetriesUnknown, RetriesUnknown, false
+	return coalesceRetries(pin, okPIN, puk, okPUK)
+}
+
+// coalesceRetries merges the optional PIN and PUK retry counts read from a
+// card. A count that could not be read is reported as RetriesUnknown so that it
+// is not mistaken for an exhausted PIN or PUK. The boolean result is false only
+// when neither count could be read, in which case the card does not match.
+func coalesceRetries(pin int, okPIN bool, puk int, okPUK bool) (int, int, bool) {
+	if !okPIN {
+		pin = RetriesUnknown
 	}
-	return pin, puk, true
+	if !okPUK {
+		puk = RetriesUnknown
+	}
+	return pin, puk, okPIN || okPUK
 }
 
 // queryRetries reads the number of remaining attempts for the PIN (pinRef) or
