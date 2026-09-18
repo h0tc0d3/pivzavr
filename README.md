@@ -104,7 +104,7 @@ To find the available programs: `find /usr -type f -name "pinentry*"`.
 
 Remove the line that specifies the custom scdaemon path. This allows you to use both the `OpenPGP` smart card application (`gpg --edit-card`) and PIV with `pivzavr`.
 
-`sed -i '/scdaemon-program/d' ~/.gnupg/gpg-agent.conf``
+`sed -i '/scdaemon-program/d' ~/.gnupg/gpg-agent.conf`
 
 ### Reset and initialize the smart card PIV applet
 
