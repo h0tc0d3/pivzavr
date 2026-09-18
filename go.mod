@@ -9,7 +9,6 @@ require (
 	github.com/pborman/getopt/v2 v2.2.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.12.1
-	github.com/twpayne/go-pinentry/v4 v4.0.1
 )
 
 require (

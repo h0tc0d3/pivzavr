@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/twpayne/go-pinentry/v4"
 )
 
 // CertHexFingerprint returns checksum of a certificate's raw bytes
@@ -19,29 +18,35 @@ func CertHexFingerprint(certificate *x509.Certificate) string {
 	return strings.ToUpper(hex.EncodeToString(fpr[:16]))
 }
 
-// GetPin prompts the user for a PIN
-func GetPin(reader io.Reader) (string, error) {
-	client, err := pinentry.NewClient(
-		pinentry.WithBinaryNameFromGnuPGAgentConf(),
-		pinentry.WithDesc("Enter smart card PIN"),
-		pinentry.WithPrompt("PIN:"),
-		pinentry.WithTitle("pivzavr"),
-		pinentry.WithGPGTTY(),
-	)
+// GetPin prompts the user for a PIN.
+//
+// The PIN is entered through the pinentry program, which is launched directly
+// and spoken to over the Assuan protocol. The reader argument is retained for
+// backwards compatibility and is no longer used.
+func GetPin(_ io.Reader) (string, error) {
+	path, err := resolvePinentryPath()
+	if err != nil {
+		return "", err
+	}
+
+	client, err := newPinentryClient(path)
 	if err != nil {
 		return "", errors.Wrap(err, "Create pinentry client")
 	}
-	defer func() { _ = client.Close() }()
+	defer func() { _ = client.close() }()
 
-	result, err := client.GetPIN()
+	if err := client.configure(pinentryTTY()); err != nil {
+		return "", errors.Wrap(err, "Configure pinentry")
+	}
+
+	pin, err := client.getPIN()
 	if err != nil {
-		if pinentry.IsCancelled(err) {
+		if isCancelled(err) {
 			return "", errors.New("PIN entry cancelled.")
 		}
 		return "", errors.Wrap(err, "Get PIN from pinentry")
 	}
 
-	pin := result.PIN
 	if !validPIN(pin) {
 		return "", fmt.Errorf("PIN must be 6-8 digits long")
 	}

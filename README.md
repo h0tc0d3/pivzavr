@@ -14,7 +14,7 @@ Pivzavr is a fork of [cashapp/pivit](https://github.com/cashapp/pivit).
 Advantages over the original project:
 
 - Does not require exclusive access to the smart card, so it can run alongside `gpg-agent` and `ssh-agent`.
-- Uses `pinentry` from `GnuPG` for secure PIN entry, which allows PIN entry in non-interactive shells and improves security.
+- Uses `pinentry` from `GnuPG` for secure PIN entry, which allows PIN entry in non-interactive shells and improves security. `pinentry` is launched directly (bypassing `gpg-agent`) and driven over the Assuan protocol, so no external library is required and no PIN ever passes through `gpg`.
 - Provides improved certificate data output.
 - Adds a list of active smart card slots.
 - Key generation has been removed because it requires exclusive access to the smart card. To generate keys and move them between slots, use the smart card manufacturer's software, for example <https://github.com/yubico/yubioath-flutter>.
@@ -90,8 +90,11 @@ card-timeout 1
 
 ### ~/.gnupg/gpg-agent.conf
 
+This file only configures `GnuPG` itself. `pivzavr` launches `pinentry`
+directly and does not read `gpg-agent.conf`; configure it through
+`~/.config/pivzavr/config` instead (see [Configuration](#configuration)).
+
 ```text
-allow-loopback-pinentry
 pinentry-program /usr/bin/pinentry-qt
 ```
 
@@ -101,13 +104,7 @@ To find the available programs: `find /usr -type f -name "pinentry*"`.
 
 Remove the line that specifies the custom scdaemon path. This allows you to use both the `OpenPGP` smart card application (`gpg --edit-card`) and PIV with `pivzavr`.
 
-`sed -i '/scdaemon-program/d' ~/.gnupg/gpg-agent.conf`
-
-### ~/.gnupg/gpg.conf
-
-```text
-pinentry-mode loopback
-```
+`sed -i '/scdaemon-program/d' ~/.gnupg/gpg-agent.conf``
 
 ### Reset and initialize the smart card PIV applet
 
