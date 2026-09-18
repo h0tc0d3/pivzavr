@@ -78,7 +78,12 @@ func runCommand() error {
 		}
 	}
 
-	tok, err := pivzavr.TokenHandleWithSerial(os.Getenv("PIVZAVR_SERIAL"))
+	serial, err := pivzavr.Serial()
+	if err != nil {
+		return err
+	}
+
+	tok, err := pivzavr.TokenHandleWithSerial(serial)
 	if err != nil {
 		return errors.Wrap(err, "Failed to open smart card")
 	}

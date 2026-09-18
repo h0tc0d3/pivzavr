@@ -27,6 +27,40 @@ Advantages over the original project:
 go install github.com/h0tc0d3/pivzavr/cmd/pivzavr@latest
 ```
 
+## Configuration
+
+`pivzavr` reads its configuration from `~/.config/pivzavr/config`
+(`$XDG_CONFIG_HOME/pivzavr/config` when `XDG_CONFIG_HOME` is set).
+The file contains one `key value` setting per line; blank lines and lines
+starting with `#` are ignored.
+
+```text
+# Path to the pinentry program used for PIN entry.
+pinentry /usr/bin/pinentry-qt
+
+# Path to the PKCS#11 module used to talk to the smart card.
+pkcs11-module /usr/lib/x86_64-linux-gnu/libykcs11.so
+
+# Serial number of the smart card to use when more than one is connected.
+serial 0000000000000000
+```
+
+The following environment variables override the configuration file:
+
+- `PIVZAVR_PINENTRY` - path to the pinentry program.
+- `PIVZAVR_PKCS11_MODULE` - path to the PKCS#11 module.
+- `PIVZAVR_SERIAL` - serial number of the smart card to use when more than one is connected.
+
+Settings are resolved with the following priority, from lowest to highest:
+
+1. Default settings (auto-detected pinentry/PKCS#11 module for the current operating system).
+2. The configuration file (`~/.config/pivzavr/config`).
+3. Environment variables (`PIVZAVR_PINENTRY`, `PIVZAVR_PKCS11_MODULE`, `PIVZAVR_SERIAL`).
+
+When no pinentry program is configured, `pivzavr` searches for the first
+available program in the following order of preference: `pinentry-qt`,
+`pinentry-gtk`, `pinentry-curses`, `pinentry-tty`.
+
 ## Usage
 
 To configure Git to use `pivzavr` to sign and verify signatures, run the following commands:

@@ -27,9 +27,6 @@ const (
 	defaultSO = "12345678"
 	// defaultLabel is the label assigned to the token when it is initialized.
 	defaultLabel = "pivzavr"
-	// pkcs11ModuleEnv is the environment variable used to select the PKCS#11
-	// module to load.
-	pkcs11ModuleEnv = "PIVZAVR_PKCS11_MODULE"
 	// yubicoVendorID is Yubico's USB vendor ID as reported by sysfs.
 	yubicoVendorID = "1050"
 )
@@ -262,12 +259,7 @@ func candidateModulePaths(goos, goarch string) []string {
 // serial. If serial is empty, the token is returned only if exactly one token
 // is present.
 func TokenHandleWithSerial(serial string) (Pivzavr, error) {
-	var err error
-	module := os.Getenv(pkcs11ModuleEnv)
-	if module == "" {
-		module, err = findModulePath()
-	}
-
+	module, err := resolvePKCS11Module()
 	if err != nil {
 		return nil, err
 	}
