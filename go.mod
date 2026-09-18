@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d
+	github.com/ebfe/scard v0.0.0-20241214075232-7af069cabc25
 	github.com/github/smimesign v0.2.0
 	github.com/miekg/pkcs11 v1.1.2
 	github.com/pborman/getopt/v2 v2.2.0

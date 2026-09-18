@@ -50,6 +50,40 @@ const (
 	SlotRetiredKeyManagement20 Slot = "95"
 )
 
+// SlotInfo describes the certificate stored in a single PIV slot.
+type SlotInfo struct {
+	// Slot the certificate was read from.
+	Slot Slot
+	// Certificate is the parsed x509 certificate, or nil when the slot holds
+	// no certificate.
+	Certificate *x509.Certificate
+}
+
+// DeviceInfo describes a smart card and the PIV slots that currently hold a
+// certificate.
+type DeviceInfo struct {
+	// Name is the token label reported by the PKCS#11 module.
+	Name string
+	// FirmwareVersion is the firmware version reported by the PKCS#11 module.
+	FirmwareVersion string
+	// SerialNumber is the token serial number reported by the PKCS#11 module.
+	SerialNumber string
+	// CHUID is the hex-encoded Card Holder Unique Identifier, or an empty
+	// string when the data object is not exposed by the token.
+	CHUID string
+	// CCC is the hex-encoded Card Capability Container, or an empty string
+	// when the data object is not exposed by the token.
+	CCC string
+	// PinRetries is the number of remaining PIN attempts, or RetriesUnknown
+	// when the count could not be read.
+	PinRetries int
+	// PukRetries is the number of remaining PUK attempts, or RetriesUnknown
+	// when the count could not be read.
+	PukRetries int
+	// Slots are the active PIV slots and the certificates they hold.
+	Slots []SlotInfo
+}
+
 // Pivzavr is the minimal set of operations the pivzavr commands require from a
 // PKCS#11 token.
 type Pivzavr interface {
@@ -61,6 +95,10 @@ type Pivzavr interface {
 
 	// Slots returns the PIV slots that currently hold a certificate.
 	Slots() ([]Slot, error)
+
+	// Info returns identification data for the token, including the
+	// certificates stored in its active slots.
+	Info() (*DeviceInfo, error)
 
 	// Signer returns a crypto.Signer backed by the private key in slot.
 	// prompt is used to obtain the PIN when the token requires a login.

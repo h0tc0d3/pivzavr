@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/big"
@@ -255,10 +256,9 @@ func candidateModulePaths(goos, goarch string) []string {
 	return paths
 }
 
-// TokenHandleWithSerial returns a handle to the token in the slot matching
-// serial. If serial is empty, the token is returned only if exactly one token
-// is present.
-func TokenHandleWithSerial(serial string) (Pivzavr, error) {
+// openContext loads the configured PKCS#11 module and initializes it. The
+// caller owns the returned context and must release it with Destroy.
+func openContext() (*pkcs11.Ctx, error) {
 	module, err := resolvePKCS11Module()
 	if err != nil {
 		return nil, err
@@ -269,6 +269,22 @@ func TokenHandleWithSerial(serial string) (Pivzavr, error) {
 		return nil, errors.Errorf("Failed to load PKCS#11 module %q.", module)
 	}
 
+	if err := ctx.Initialize(); err != nil {
+		ctx.Destroy()
+		return nil, errors.Wrapf(err, "Initialize PKCS#11 module %q", module)
+	}
+	return ctx, nil
+}
+
+// TokenHandleWithSerial returns a handle to the token in the slot matching
+// serial. If serial is empty, the token is returned only if exactly one token
+// is present.
+func TokenHandleWithSerial(serial string) (Pivzavr, error) {
+	ctx, err := openContext()
+	if err != nil {
+		return nil, err
+	}
+
 	// Ensure the module is released on every error path. On success, ownership
 	// transfers to the returned token, which releases it in Close.
 	owned := true
@@ -277,10 +293,6 @@ func TokenHandleWithSerial(serial string) (Pivzavr, error) {
 			ctx.Destroy()
 		}
 	}()
-
-	if err = ctx.Initialize(); err != nil {
-		return nil, errors.Wrapf(err, "Initialize PKCS#11 module %q", module)
-	}
 
 	slots, err := ctx.GetSlotList(true)
 	if err != nil {
@@ -310,6 +322,127 @@ func TokenHandleWithSerial(serial string) (Pivzavr, error) {
 	}
 
 	return nil, errors.Errorf("No smart card found with serial number %s.", serial)
+}
+
+// DeviceInfos returns identification data for every smart card currently
+// present, in the order reported by the PKCS#11 module.
+func DeviceInfos() ([]*DeviceInfo, error) {
+	ctx, err := openContext()
+	if err != nil {
+		return nil, err
+	}
+	defer ctx.Destroy()
+
+	slots, err := ctx.GetSlotList(true)
+	if err != nil {
+		return nil, errors.Wrap(err, "Enumerate smart cards")
+	}
+	if len(slots) == 0 {
+		return nil, errors.New("No smart card found.")
+	}
+
+	infos := make([]*DeviceInfo, 0, len(slots))
+	for _, slotID := range slots {
+		tok := &pkcs11Token{ctx: ctx, slotID: slotID}
+		info, err := tok.Info()
+		if err != nil {
+			return nil, err
+		}
+		infos = append(infos, info)
+	}
+	return infos, nil
+}
+
+// Info returns identification data for the token together with the
+// certificates stored in its active slots.
+func (t *pkcs11Token) Info() (*DeviceInfo, error) {
+	ti, err := t.ctx.GetTokenInfo(t.slotID)
+	if err != nil {
+		return nil, errors.Wrap(err, "Get token info")
+	}
+
+	info := &DeviceInfo{
+		Name:            strings.TrimSpace(ti.Label),
+		FirmwareVersion: fmt.Sprintf("%d.%d", ti.FirmwareVersion.Major, ti.FirmwareVersion.Minor),
+		SerialNumber:    strings.TrimSpace(ti.SerialNumber),
+	}
+	if value, ok := t.dataObject("Card Holder Unique Identifier", "CHUID"); ok {
+		info.CHUID = strings.ToUpper(hex.EncodeToString(value))
+	}
+	if value, ok := t.dataObject("Card Capability Container", "CCC"); ok {
+		info.CCC = strings.ToUpper(hex.EncodeToString(value))
+	}
+
+	// PIN/PUK retry counts are not exposed through PKCS#11, so they are read
+	// from the PIV applet directly, using the CHUID to select the card.
+	info.PinRetries, info.PukRetries = readPIVRetries(info.CHUID)
+
+	slots, err := t.Slots()
+	if err != nil {
+		return nil, err
+	}
+	for _, slot := range slots {
+		cert, err := t.Certificate(slot)
+		if err != nil {
+			return nil, err
+		}
+		info.Slots = append(info.Slots, SlotInfo{Slot: slot, Certificate: cert})
+	}
+	return info, nil
+}
+
+// dataObject returns the value of the first PKCS#11 data object whose CKA_LABEL
+// matches one of labels, compared case-insensitively. The boolean result
+// reports whether a matching object was found. Tokens that do not expose PIV
+// data objects (such as some PKCS#11 modules) yield false.
+func (t *pkcs11Token) dataObject(labels ...string) ([]byte, bool) {
+	sh, err := t.openSession()
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = t.ctx.CloseSession(sh) }()
+
+	template := []*pkcs11.Attribute{
+		pkcs11.NewAttribute(pkcs11.CKA_CLASS, pkcs11.CKO_DATA),
+	}
+	if err := t.ctx.FindObjectsInit(sh, template); err != nil {
+		return nil, false
+	}
+	defer func() { _ = t.ctx.FindObjectsFinal(sh) }()
+
+	for {
+		objs, _, err := t.ctx.FindObjects(sh, 32)
+		if err != nil || len(objs) == 0 {
+			return nil, false
+		}
+		for _, obj := range objs {
+			attrs, err := t.ctx.GetAttributeValue(sh, obj, []*pkcs11.Attribute{
+				pkcs11.NewAttribute(pkcs11.CKA_LABEL, nil),
+				pkcs11.NewAttribute(pkcs11.CKA_VALUE, nil),
+			})
+			if err != nil || len(attrs) != 2 {
+				continue
+			}
+			if !labelMatches(strings.TrimSpace(string(attrs[0].Value)), labels) {
+				continue
+			}
+			if len(attrs[1].Value) == 0 {
+				continue
+			}
+			return attrs[1].Value, true
+		}
+	}
+}
+
+// labelMatches reports whether label equals any of candidates, ignoring case
+// and surrounding whitespace.
+func labelMatches(label string, candidates []string) bool {
+	for _, candidate := range candidates {
+		if strings.EqualFold(label, candidate) {
+			return true
+		}
+	}
+	return false
 }
 
 // Close releases the PKCS#11 module.

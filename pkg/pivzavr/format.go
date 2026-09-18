@@ -10,7 +10,9 @@ import (
 	"encoding/asn1"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -25,8 +27,8 @@ func FormatCertificate(output *CertificateOutput) string {
 		cert := output.Certificate
 		fmt.Fprintf(&b, "Serial Number: %x\n", cert.SerialNumber)
 		fmt.Fprintf(&b, "Key Type:      %s\n", CertKeyType(cert))
-		fmt.Fprintf(&b, "Not Before:    %s\n", cert.NotBefore.UTC().Format("2006-01-02 15:04:05 MST"))
-		fmt.Fprintf(&b, "Not After:     %s\n", cert.NotAfter.UTC().Format("2006-01-02 15:04:05 MST"))
+		fmt.Fprintf(&b, "Not Before:    %s\n", formatTime(cert.NotBefore))
+		fmt.Fprintf(&b, "Not After:     %s\n", formatTime(cert.NotAfter))
 		fmt.Fprintf(&b, "Subject DN:    %s\n", formatName(cert.Subject))
 		fmt.Fprintf(&b, "Issuer DN:     %s\n\n", formatName(cert.Issuer))
 	}
@@ -221,15 +223,65 @@ func escapeNameValue(value string) string {
 	return string(escaped)
 }
 
+// formatTime renders a certificate validity timestamp in UTC.
+func formatTime(t time.Time) string {
+	return t.UTC().Format("2006-01-02 15:04:05 MST")
+}
+
+// unavailableIfEmpty returns value, or a placeholder when value is empty.
+func unavailableIfEmpty(value string) string {
+	if value == "" {
+		return "(unavailable)"
+	}
+	return value
+}
+
+// formatRetries renders a retry count, or a placeholder when the count is
+// unknown.
+func formatRetries(retries int) string {
+	if retries < 0 {
+		return "(unavailable)"
+	}
+	return strconv.Itoa(retries)
+}
+
+// FormatDeviceInfo returns a human-readable view of a smart card: its name,
+// firmware version, serial number, PIV data objects and the certificates
+// stored in its active slots.
+func FormatDeviceInfo(info *DeviceInfo) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Name:        %s\n", info.Name)
+	fmt.Fprintf(&b, "Firmware:    %s\n", info.FirmwareVersion)
+	fmt.Fprintf(&b, "Serial:      %s\n", info.SerialNumber)
+	fmt.Fprintf(&b, "CHUID:       %s\n", unavailableIfEmpty(info.CHUID))
+	fmt.Fprintf(&b, "CCC:         %s\n", unavailableIfEmpty(info.CCC))
+	fmt.Fprintf(&b, "PIN Retries: %s\n", formatRetries(info.PinRetries))
+	fmt.Fprintf(&b, "PUK Retries: %s\n", formatRetries(info.PukRetries))
+
+	if len(info.Slots) == 0 {
+		return b.String()
+	}
+	b.WriteString("\n")
+	for _, s := range info.Slots {
+		b.WriteString(FormatSlot(s.Slot, s.Certificate))
+	}
+	return b.String()
+}
+
 // FormatSlot returns a human-readable view of the certificate stored in slot:
-// the slot description, the certificate fingerprint and its subject.
+// the slot description, the certificate fingerprint, key type, subject and
+// issuer distinguished names and its validity period.
 func FormatSlot(slot Slot, cert *x509.Certificate) string {
 	return fmt.Sprintf(
-		"Slot: %s (%s)\n  Fingerprint: %s\n  Key Type: %s\n  Subject: %s\n\n",
+		"Slot: %s (%s)\n  Fingerprint: %s\n  Key Type: %s\n"+
+			"  Subject DN: %s\n  Issuer DN: %s\n  Not Before: %s\n  Not After: %s\n\n",
 		slot,
 		slot.Description(),
 		CertHexFingerprint(cert),
 		CertKeyType(cert),
 		formatName(cert.Subject),
+		formatName(cert.Issuer),
+		formatTime(cert.NotBefore),
+		formatTime(cert.NotAfter),
 	)
 }

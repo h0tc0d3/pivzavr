@@ -21,14 +21,26 @@ type slotContent struct {
 }
 
 type fakeToken struct {
-	pin   string
-	slots map[Slot]*slotContent
+	pin             string
+	name            string
+	firmwareVersion string
+	serialNumber    string
+	chuid           string
+	ccc             string
+	pinRetries      int
+	pukRetries      int
+	slots           map[Slot]*slotContent
 }
 
 func testToken() (*fakeToken, error) {
 	return &fakeToken{
-		pin:   DefaultPIN,
-		slots: make(map[Slot]*slotContent),
+		pin:             DefaultPIN,
+		name:            "pivzavr test",
+		firmwareVersion: "1.0",
+		serialNumber:    "00000000",
+		pinRetries:      RetriesUnknown,
+		pukRetries:      RetriesUnknown,
+		slots:           make(map[Slot]*slotContent),
 	}, nil
 }
 
@@ -52,6 +64,30 @@ func (f *fakeToken) Slots() ([]Slot, error) {
 		}
 	}
 	return slots, nil
+}
+
+func (f *fakeToken) Info() (*DeviceInfo, error) {
+	info := &DeviceInfo{
+		Name:            f.name,
+		FirmwareVersion: f.firmwareVersion,
+		SerialNumber:    f.serialNumber,
+		CHUID:           f.chuid,
+		CCC:             f.ccc,
+		PinRetries:      f.pinRetries,
+		PukRetries:      f.pukRetries,
+	}
+	slots, err := f.Slots()
+	if err != nil {
+		return nil, err
+	}
+	for _, slot := range slots {
+		cert, err := f.Certificate(slot)
+		if err != nil {
+			return nil, err
+		}
+		info.Slots = append(info.Slots, SlotInfo{Slot: slot, Certificate: cert})
+	}
+	return info, nil
 }
 
 func (f *fakeToken) Signer(slot Slot, _ io.Reader) (crypto.Signer, error) {

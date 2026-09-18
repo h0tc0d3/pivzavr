@@ -28,7 +28,7 @@ jobs:
       name: "Install dependencies"
       run: |
         sudo apt update
-        sudo apt install -y pcscd pcsc-tools opensc-pkcs11
+        sudo apt install -y pcscd pcsc-tools opensc-pkcs11 libpcsclite-dev
 
     - name: Build
       run: go build -v ./...

@@ -3,6 +3,8 @@ github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d h1:S2NE3iHSwP0XV
 github.com/certifi/gocertifi v0.0.0-20210507211836-431795d63e8d/go.mod h1:sGbDF6GwGcLpkNXPUTkMRoywsNa/ol15pxFe6ERfguA=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/ebfe/scard v0.0.0-20241214075232-7af069cabc25 h1:vXmXuiy1tgifTqWAAaU+ESu1goRp4B3fdhemWMMrS4g=
+github.com/ebfe/scard v0.0.0-20241214075232-7af069cabc25/go.mod h1:BkYEeWL6FbT4Ek+TcOBnPzEKnL7kOq2g19tTQXkorHY=
 github.com/github/smimesign v0.2.0 h1:Hho4YcX5N1I9XNqhq0fNx0Sts8MhLonHd+HRXVGNjvk=
 github.com/github/smimesign v0.2.0/go.mod h1:iZiiwNT4HbtGRVqCQu7uJPEZCuEE5sfSSttcnePkDl4=
 github.com/miekg/pkcs11 v1.1.2 h1:/VxmeAX5qU6Q3EwafypogwWbYryHFmF2RpkJmw3m4MQ=

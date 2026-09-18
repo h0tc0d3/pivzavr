@@ -16,7 +16,7 @@ Advantages over the original project:
 - Does not require exclusive access to the smart card, so it can run alongside `gpg-agent` and `ssh-agent`.
 - Uses `pinentry` from `GnuPG` for secure PIN entry, which allows PIN entry in non-interactive shells and improves security. `pinentry` is launched directly (bypassing `gpg-agent`) and driven over the Assuan protocol, so no external library is required and no PIN ever passes through `gpg`.
 - Provides improved certificate data output.
-- Adds a list of active smart card slots.
+- Reports device information (name, firmware version, serial number, CHUID, CCC, PIN/PUK retries) and the certificates held in the active smart card slots.
 - Key generation has been removed because it requires exclusive access to the smart card. To generate keys and move them between slots, use the smart card manufacturer's software, for example <https://github.com/yubico/yubioath-flutter>.
 
 ## Install
@@ -130,31 +130,59 @@ Available slots: `9a`, `9c`, `9d`, `9e`, `9b`, `f9`, and `82-95`.
 
 For more information, see the PIV specification (NIST SP 800-73).
 
-### List active PIV slots
+### Device information and active PIV slots
 
 ```shell
-pivzavr --list
+pivzavr --info
 ```
 
-Lists the PIV slots that currently hold a certificate, alongside each certificate's fingerprint and subject.
+Prints information about every connected smart card, including its name, firmware version,
+serial number, the PIV data objects (CHUID and CCC) and the certificates stored in the active
+PIV slots.
 For example:
 
 ```text
+Name:        YubiKey PIV #00000000
+Firmware:    5.4
+Serial:      00000000
+CHUID:       53304215D4E739...
+CCC:         53304215F0000000...
+PIN Retries: 3
+PUK Retries: 3
+
 Slot: 9a (Authentication)
   Fingerprint: D34DCF3361CBEEA998138E483CF0AF6E
   Key Type: ECDSA NIST P-384
-  Subject: CN=Grigory Vasilyev,L=Moscow,C=RU,UID=h0tc0d3,emailAddress=h0tc0d3@email
+  Subject DN: CN=Grigory Vasilyev,L=Moscow,C=RU,UID=h0tc0d3,emailAddress=h0tc0d3@email
+  Issuer DN: CN=Grigory Vasilyev,L=Moscow,C=RU,UID=h0tc0d3,emailAddress=h0tc0d3@email
+  Not Before: 2026-09-14 00:00:00 UTC
+  Not After: 2036-09-14 00:00:00 UTC
 
 Slot: 9c (Digital Signature)
   Fingerprint: 9355EBBA189245C53417404EFDDA3F73
   Key Type: ECDSA NIST P-384
-  Subject: CN=Grigory Vasilyev,L=Moscow,C=RU,UID=h0tc0d3,emailAddress=h0tc0d3@email
+  Subject DN: CN=Grigory Vasilyev,L=Moscow,C=RU,UID=h0tc0d3,emailAddress=h0tc0d3@email
+  Issuer DN: CN=Grigory Vasilyev,L=Moscow,C=RU,UID=h0tc0d3,emailAddress=h0tc0d3@email
+  Not Before: 2026-09-14 00:00:00 UTC
+  Not After: 2036-09-14 00:00:00 UTC
 
 Slot: f9 (Attestation)
   Fingerprint: 4802B0A57C3B158035E6B41496435884
   Key Type: RSA 2048
-  Subject: CN=YubiKey PIV Attestation
+  Subject DN: CN=YubiKey PIV Attestation
+  Issuer DN: CN=YubiKey PIV Attestation
+  Not Before: 2024-01-01 00:00:00 UTC
+  Not After: 2054-01-01 00:00:00 UTC
 ```
+
+The CHUID and CCC data objects are read from the token when the PKCS#11 module exposes them
+(for example `libykcs11` and `opensc-pkcs11`); otherwise they are shown as `(unavailable)`.
+
+The PIN and PUK retry counts are not part of PKCS#11 and are read directly from the PIV applet
+over PC/SC (using the same method as `ykman`/`yubico-piv-tool`). This requires a PC/SC
+implementation to be available at build time (`libpcsclite-dev` on Linux; the PC/SC framework
+is used on macOS and `winscard` on Windows) and at runtime. When the counts cannot be read they
+are shown as `(unavailable)`.
 
 You can choose a slot using the `-w` flag.
 For each command, if no slot is specified, `9c` is used by default.

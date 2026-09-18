@@ -97,7 +97,65 @@ func TestFormatSlot(t *testing.T) {
 	assert.Contains(t, formatted, "Slot: 83 (Retired Key Management 2)")
 	assert.Contains(t, formatted, "Fingerprint: "+CertHexFingerprint(cert))
 	assert.Contains(t, formatted, "Key Type: "+CertKeyType(cert))
-	assert.Contains(t, formatted, "Subject: CN=pivzavr test")
+	assert.Contains(t, formatted, "Subject DN: CN=pivzavr test")
+	assert.Contains(t, formatted, "Issuer DN: CN=pivzavr test")
+	assert.Contains(t, formatted, "Not Before: "+formatTime(cert.NotBefore))
+	assert.Contains(t, formatted, "Not After: "+formatTime(cert.NotAfter))
+}
+
+func TestFormatDeviceInfo(t *testing.T) {
+	tok, err := testToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := generateKeyAndCertificate(tok, SlotAuthentication)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := generateKeyAndCertificate(tok, SlotSignature)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tok.chuid = "CHUIDVALUE"
+	tok.ccc = "CCCVALUE"
+	tok.pinRetries = 3
+	tok.pukRetries = 2
+
+	info, err := tok.Info()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	formatted := FormatDeviceInfo(info)
+	assert.Contains(t, formatted, "Name:        pivzavr test")
+	assert.Contains(t, formatted, "Firmware:    1.0")
+	assert.Contains(t, formatted, "Serial:      00000000")
+	assert.Contains(t, formatted, "CHUID:       CHUIDVALUE")
+	assert.Contains(t, formatted, "CCC:         CCCVALUE")
+	assert.Contains(t, formatted, "PIN Retries: 3")
+	assert.Contains(t, formatted, "PUK Retries: 2")
+	assert.NotContains(t, formatted, "Active Slots:")
+	assert.Contains(t, formatted, "\n\n"+FormatSlot(SlotAuthentication, first))
+	assert.Contains(t, formatted, FormatSlot(SlotSignature, second))
+}
+
+func TestFormatDeviceInfoNoSlots(t *testing.T) {
+	info := &DeviceInfo{
+		Name:       "pivzavr test",
+		PinRetries: RetriesUnknown,
+		PukRetries: RetriesUnknown,
+	}
+
+	formatted := FormatDeviceInfo(info)
+	assert.Contains(t, formatted, "Name:        pivzavr test")
+	assert.Contains(t, formatted, "CHUID:       (unavailable)")
+	assert.Contains(t, formatted, "CCC:         (unavailable)")
+	assert.Contains(t, formatted, "PIN Retries: (unavailable)")
+	assert.Contains(t, formatted, "PUK Retries: (unavailable)")
+	assert.NotContains(t, formatted, "Active Slots:")
+	assert.True(t, strings.HasSuffix(formatted, "PUK Retries: (unavailable)\n"))
 }
 
 func TestCertKeyType(t *testing.T) {

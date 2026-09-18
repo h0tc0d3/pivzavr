@@ -24,7 +24,7 @@ func runCommand() error {
 	resetFlag := getopt.BoolLong("reset", 'r', "resets the smart card PIV applet and sets new PIN, random PUK, and PIN derived management key")
 	slot := getopt.StringLong("slot", 'w', "9c", "choose a PIV slot by key reference (9a-9e, 82-95, 9b, f9), defaults to PIV slot 9c", "slot")
 	printFlag := getopt.BoolLong("print", 'p', "prints the certificate with its fingerprint and details")
-	listFlag := getopt.BoolLong("list", 'l', "list active PIV slots and their certificates")
+	infoFlag := getopt.BoolLong("info", 'i', "print device information and active PIV slots")
 
 	localUserOpt := getopt.StringLong("local-user", 'u', "", "use USER-ID to sign", "USER-ID")
 	detachSignFlag := getopt.BoolLong("detach-sign", 'b', "make a detached signature")
@@ -45,7 +45,7 @@ func runCommand() error {
 	// Validate the command before opening the smart card so invalid invocations
 	// report a usage error instead of requiring hardware to be present.
 	commandFlags := 0
-	if *listFlag {
+	if *infoFlag {
 		commandFlags++
 	}
 	if *signFlag {
@@ -61,7 +61,7 @@ func runCommand() error {
 		commandFlags++
 	}
 	if commandFlags != 1 {
-		return errors.New("Specify --help, --sign, --verify, --reset, --print or --list.")
+		return errors.New("Specify --help, --sign, --verify, --reset, --print or --info.")
 	}
 
 	// Validate command-specific arguments before accessing the smart card.
@@ -78,6 +78,21 @@ func runCommand() error {
 		}
 	}
 
+	// The info command reports every connected device, so it runs before a
+	// single token is selected.
+	if *infoFlag {
+		devices, err := pivzavr.DeviceInfos()
+		if err != nil {
+			return err
+		}
+		for _, device := range devices {
+			if _, err := fmt.Fprint(os.Stdout, pivzavr.FormatDeviceInfo(device)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	serial, err := pivzavr.Serial()
 	if err != nil {
 		return err
@@ -90,23 +105,6 @@ func runCommand() error {
 	defer func() {
 		_ = tok.Close()
 	}()
-
-	if *listFlag {
-		slots, err := tok.Slots()
-		if err != nil {
-			return err
-		}
-		for _, s := range slots {
-			cert, err := tok.Certificate(s)
-			if err != nil {
-				return err
-			}
-			if _, err := fmt.Fprint(os.Stdout, pivzavr.FormatSlot(s, cert)); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
 
 	if *signFlag {
 		var message io.ReadCloser
@@ -214,5 +212,5 @@ func runCommand() error {
 		return err
 	}
 
-	return errors.New("Specify --help, --sign, --verify, --reset, --print or --list.")
+	return errors.New("Specify --help, --sign, --verify, --reset, --print or --info.")
 }

@@ -75,3 +75,39 @@ func TestSlots(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []Slot{SlotSignature, SlotRetiredKeyManagement1}, slots)
 }
+
+func TestInfo(t *testing.T) {
+	tok, err := testToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cert, err := generateKeyAndCertificate(tok, SlotSignature)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tok.chuid = "CHUID"
+	tok.ccc = "CCC"
+	tok.pinRetries = 3
+	tok.pukRetries = 2
+
+	info, err := tok.Info()
+	assert.NoError(t, err)
+	assert.Equal(t, "pivzavr test", info.Name)
+	assert.Equal(t, "1.0", info.FirmwareVersion)
+	assert.Equal(t, "00000000", info.SerialNumber)
+	assert.Equal(t, "CHUID", info.CHUID)
+	assert.Equal(t, "CCC", info.CCC)
+	assert.Equal(t, 3, info.PinRetries)
+	assert.Equal(t, 2, info.PukRetries)
+	assert.Equal(t, []SlotInfo{{Slot: SlotSignature, Certificate: cert}}, info.Slots)
+}
+
+func TestLabelMatches(t *testing.T) {
+	labels := []string{"Card Holder Unique Identifier", "CHUID"}
+
+	assert.True(t, labelMatches("Card Holder Unique Identifier", labels))
+	assert.True(t, labelMatches("chuid", labels))
+	assert.False(t, labelMatches("Card Capability Container", labels))
+}
