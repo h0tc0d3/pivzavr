@@ -9,7 +9,6 @@ import (
 	"io"
 	"strings"
 
-	cms "github.com/github/smimesign/ietf-cms"
 	"github.com/pkg/errors"
 )
 
@@ -59,7 +58,7 @@ func Sign(tok Pivzavr, opts *SignOpts) ([]byte, error) {
 		return nil, errors.Wrap(err, "Read message to sign")
 	}
 
-	sd, err := cms.NewSignedData(dataBuf.Bytes())
+	sd, err := NewSignedData(dataBuf.Bytes())
 	if err != nil {
 		return nil, errors.Wrap(err, "Create signed data")
 	}

@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/certifi/gocertifi"
-	cms "github.com/github/smimesign/ietf-cms"
 	"github.com/pkg/errors"
 )
 
@@ -44,7 +43,7 @@ func VerifySignature(tok Pivzavr, opts *VerifyOpts) error {
 		ber = buf.Bytes()
 	}
 
-	sd, err := cms.ParseSignedData(ber)
+	sd, err := ParseSignedData(ber)
 	if err != nil {
 		return errors.Wrap(err, "Parse signature")
 	}
@@ -63,7 +62,7 @@ func VerifySignature(tok Pivzavr, opts *VerifyOpts) error {
 	return verifyAttached(tok, sd, opts.Slot)
 }
 
-func verifyAttached(tok Pivzavr, sd *cms.SignedData, slot Slot) error {
+func verifyAttached(tok Pivzavr, sd *SignedData, slot Slot) error {
 	chains, err := sd.Verify(verifyOpts(tok, slot))
 	if err != nil {
 		// The CMS library returns no chains on failure, so a BADSIG status
@@ -88,7 +87,7 @@ func verifyAttached(tok Pivzavr, sd *cms.SignedData, slot Slot) error {
 	return nil
 }
 
-func verifyDetached(tok Pivzavr, sd *cms.SignedData, data io.Reader, slot Slot) error {
+func verifyDetached(tok Pivzavr, sd *SignedData, data io.Reader, slot Slot) error {
 	buf := new(bytes.Buffer)
 	if _, err := io.Copy(buf, data); err != nil {
 		return errors.Wrap(err, "Read message file")
