@@ -1,0 +1,230 @@
+package pivzavr
+
+import (
+	"crypto/x509"
+	"encoding/pem"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestCertHexFingerprint(t *testing.T) {
+	// A cert from google.com, fetched on 2024-07-18.
+	pemCert := []byte(`-----BEGIN CERTIFICATE-----
+MIIN4zCCDMugAwIBAgIRAMmhwkjdy7M4CpXgoB3Cf3gwDQYJKoZIhvcNAQELBQAw
+OzELMAkGA1UEBhMCVVMxHjAcBgNVBAoTFUdvb2dsZSBUcnVzdCBTZXJ2aWNlczEM
+MAoGA1UEAxMDV1IyMB4XDTI0MDYyNDA2MzU0NFoXDTI0MDkxNjA2MzU0M1owFzEV
+MBMGA1UEAwwMKi5nb29nbGUuY29tMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE
+Aauze9K4ufZ06E6KUt96AwULUYHeawlHYonV89CZjZZaQovHYFKfo8ctn9Vl1dmU
+MgoxLStODjnsE0RFLbRJn6OCC88wggvLMA4GA1UdDwEB/wQEAwIHgDATBgNVHSUE
+DDAKBggrBgEFBQcDATAMBgNVHRMBAf8EAjAAMB0GA1UdDgQWBBRifK0FZVbQdFKQ
+d6eMwsnEyN2rCDAfBgNVHSMEGDAWgBTeGx7teRXUPjckwyG77DQ5bUKyMDBYBggr
+BgEFBQcBAQRMMEowIQYIKwYBBQUHMAGGFWh0dHA6Ly9vLnBraS5nb29nL3dyMjAl
+BggrBgEFBQcwAoYZaHR0cDovL2kucGtpLmdvb2cvd3IyLmNydDCCCaUGA1UdEQSC
+CZwwggmYggwqLmdvb2dsZS5jb22CFiouYXBwZW5naW5lLmdvb2dsZS5jb22CCSou
+YmRuLmRldoIVKi5vcmlnaW4tdGVzdC5iZG4uZGV2ghIqLmNsb3VkLmdvb2dsZS5j
+b22CGCouY3Jvd2Rzb3VyY2UuZ29vZ2xlLmNvbYIYKi5kYXRhY29tcHV0ZS5nb29n
+bGUuY29tggsqLmdvb2dsZS5jYYILKi5nb29nbGUuY2yCDiouZ29vZ2xlLmNvLmlu
+gg4qLmdvb2dsZS5jby5qcIIOKi5nb29nbGUuY28udWuCDyouZ29vZ2xlLmNvbS5h
+coIPKi5nb29nbGUuY29tLmF1gg8qLmdvb2dsZS5jb20uYnKCDyouZ29vZ2xlLmNv
+bS5jb4IPKi5nb29nbGUuY29tLm14gg8qLmdvb2dsZS5jb20udHKCDyouZ29vZ2xl
+LmNvbS52boILKi5nb29nbGUuZGWCCyouZ29vZ2xlLmVzggsqLmdvb2dsZS5mcoIL
+Ki5nb29nbGUuaHWCCyouZ29vZ2xlLml0ggsqLmdvb2dsZS5ubIILKi5nb29nbGUu
+cGyCCyouZ29vZ2xlLnB0gg8qLmdvb2dsZWFwaXMuY26CESouZ29vZ2xldmlkZW8u
+Y29tggwqLmdzdGF0aWMuY26CECouZ3N0YXRpYy1jbi5jb22CD2dvb2dsZWNuYXBw
+cy5jboIRKi5nb29nbGVjbmFwcHMuY26CEWdvb2dsZWFwcHMtY24uY29tghMqLmdv
+b2dsZWFwcHMtY24uY29tggxna2VjbmFwcHMuY26CDiouZ2tlY25hcHBzLmNughJn
+b29nbGVkb3dubG9hZHMuY26CFCouZ29vZ2xlZG93bmxvYWRzLmNughByZWNhcHRj
+aGEubmV0LmNughIqLnJlY2FwdGNoYS5uZXQuY26CEHJlY2FwdGNoYS1jbi5uZXSC
+EioucmVjYXB0Y2hhLWNuLm5ldIILd2lkZXZpbmUuY26CDSoud2lkZXZpbmUuY26C
+EWFtcHByb2plY3Qub3JnLmNughMqLmFtcHByb2plY3Qub3JnLmNughFhbXBwcm9q
+ZWN0Lm5ldC5jboITKi5hbXBwcm9qZWN0Lm5ldC5jboIXZ29vZ2xlLWFuYWx5dGlj
+cy1jbi5jb22CGSouZ29vZ2xlLWFuYWx5dGljcy1jbi5jb22CF2dvb2dsZWFkc2Vy
+dmljZXMtY24uY29tghkqLmdvb2dsZWFkc2VydmljZXMtY24uY29tghFnb29nbGV2
+YWRzLWNuLmNvbYITKi5nb29nbGV2YWRzLWNuLmNvbYIRZ29vZ2xlYXBpcy1jbi5j
+b22CEyouZ29vZ2xlYXBpcy1jbi5jb22CFWdvb2dsZW9wdGltaXplLWNuLmNvbYIX
+Ki5nb29nbGVvcHRpbWl6ZS1jbi5jb22CEmRvdWJsZWNsaWNrLWNuLm5ldIIUKi5k
+b3VibGVjbGljay1jbi5uZXSCGCouZmxzLmRvdWJsZWNsaWNrLWNuLm5ldIIWKi5n
+LmRvdWJsZWNsaWNrLWNuLm5ldIIOZG91YmxlY2xpY2suY26CECouZG91YmxlY2xp
+Y2suY26CFCouZmxzLmRvdWJsZWNsaWNrLmNughIqLmcuZG91YmxlY2xpY2suY26C
+EWRhcnRzZWFyY2gtY24ubmV0ghMqLmRhcnRzZWFyY2gtY24ubmV0gh1nb29nbGV0
+cmF2ZWxhZHNlcnZpY2VzLWNuLmNvbYIfKi5nb29nbGV0cmF2ZWxhZHNlcnZpY2Vz
+LWNuLmNvbYIYZ29vZ2xldGFnc2VydmljZXMtY24uY29tghoqLmdvb2dsZXRhZ3Nl
+cnZpY2VzLWNuLmNvbYIXZ29vZ2xldGFnbWFuYWdlci1jbi5jb22CGSouZ29vZ2xl
+dGFnbWFuYWdlci1jbi5jb22CGGdvb2dsZXN5bmRpY2F0aW9uLWNuLmNvbYIaKi5n
+b29nbGVzeW5kaWNhdGlvbi1jbi5jb22CJCouc2FmZWZyYW1lLmdvb2dsZXN5bmRp
+Y2F0aW9uLWNuLmNvbYIWYXBwLW1lYXN1cmVtZW50LWNuLmNvbYIYKi5hcHAtbWVh
+c3VyZW1lbnQtY24uY29tggtndnQxLWNuLmNvbYINKi5ndnQxLWNuLmNvbYILZ3Z0
+Mi1jbi5jb22CDSouZ3Z0Mi1jbi5jb22CCzJtZG4tY24ubmV0gg0qLjJtZG4tY24u
+bmV0ghRnb29nbGVmbGlnaHRzLWNuLm5ldIIWKi5nb29nbGVmbGlnaHRzLWNuLm5l
+dIIMYWRtb2ItY24uY29tgg4qLmFkbW9iLWNuLmNvbYIUZ29vZ2xlc2FuZGJveC1j
+bi5jb22CFiouZ29vZ2xlc2FuZGJveC1jbi5jb22CHiouc2FmZW51cC5nb29nbGVz
+YW5kYm94LWNuLmNvbYINKi5nc3RhdGljLmNvbYIUKi5tZXRyaWMuZ3N0YXRpYy5j
+b22CCiouZ3Z0MS5jb22CESouZ2NwY2RuLmd2dDEuY29tggoqLmd2dDIuY29tgg4q
+LmdjcC5ndnQyLmNvbYIQKi51cmwuZ29vZ2xlLmNvbYIWKi55b3V0dWJlLW5vY29v
+a2llLmNvbYILKi55dGltZy5jb22CC2FuZHJvaWQuY29tgg0qLmFuZHJvaWQuY29t
+ghMqLmZsYXNoLmFuZHJvaWQuY29tggRnLmNuggYqLmcuY26CBGcuY2+CBiouZy5j
+b4IGZ29vLmdsggp3d3cuZ29vLmdsghRnb29nbGUtYW5hbHl0aWNzLmNvbYIWKi5n
+b29nbGUtYW5hbHl0aWNzLmNvbYIKZ29vZ2xlLmNvbYISZ29vZ2xlY29tbWVyY2Uu
+Y29tghQqLmdvb2dsZWNvbW1lcmNlLmNvbYIIZ2dwaHQuY26CCiouZ2dwaHQuY26C
+CnVyY2hpbi5jb22CDCoudXJjaGluLmNvbYIIeW91dHUuYmWCC3lvdXR1YmUuY29t
+gg0qLnlvdXR1YmUuY29tghR5b3V0dWJlZWR1Y2F0aW9uLmNvbYIWKi55b3V0dWJl
+ZWR1Y2F0aW9uLmNvbYIPeW91dHViZWtpZHMuY29tghEqLnlvdXR1YmVraWRzLmNv
+bYIFeXQuYmWCByoueXQuYmWCGmFuZHJvaWQuY2xpZW50cy5nb29nbGUuY29tghMq
+LmFuZHJvaWQuZ29vZ2xlLmNughIqLmNocm9tZS5nb29nbGUuY26CFiouZGV2ZWxv
+cGVycy5nb29nbGUuY24wEwYDVR0gBAwwCjAIBgZngQwBAgEwNgYDVR0fBC8wLTAr
+oCmgJ4YlaHR0cDovL2MucGtpLmdvb2cvd3IyLzlVVmJOMHc1RTZZLmNybDCCAQQG
+CisGAQQB1nkCBAIEgfUEgfIA8AB2AO7N0GTV2xrOxVy3nbTNE6Iyh0Z8vOzew1FI
+WUZxH7WbAAABkEksH+YAAAQDAEcwRQIgb3GDZEJp5gGKD+G8h0kuRIpZR3GoUYBx
+SwTpDs90yikCIQDEasgknC+8Arx3FivNoNTDah99IhCo+hDxgqDZgeUz4wB2ANq2
+v2s/tbYin5vCu1xr6HCRcWy7UYSFNL2kPTBI1/urAAABkEksIBMAAAQDAEcwRQIg
+JGg70VEbhuxYm5Q9xwBo95meGfXFvqkSTYkwiCWf9OICIQDuxWZXr6wepFX9AalY
+5MwwUrvBJh5vlFQA/xsadcdv3zANBgkqhkiG9w0BAQsFAAOCAQEACujgHU4+xJm3
+o5uguuS4VKASvMdViP4p2RYrM9teOyXemQKgB1AnFcVbabGrST3iNR3dxChWcux1
+F65f/hvsehMKeWujcBgrAismJYi1YBpHJqbmWwniBrlcj3gCuoLRcGompoEocM0h
+fUgYmXTk6ISic0T4cFOcogE1uqP5cBWIBfPVjmVQcrsbr7TCNKGwBUaQM0fPpe4e
+y1Cf3dJYC0plgcSRycTs+7bzBvL4v1PsJeRnN30fL6inKc6pGrJQjbhKta4wJWaI
+DklnGaJUyq5Mp98Gam51m9i4616VmkODloxROWIeHUZbQ8XwWBsaRMf7rdu/RsSo
+5FxOxhBVdA==
+-----END CERTIFICATE-----
+`)
+	block, _ := pem.Decode(pemCert)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedFingerprint := "D52DC5E5378F65423B858B64FFD3828B"
+	fingerprint := CertHexFingerprint(cert)
+	assert.Equal(t, expectedFingerprint, fingerprint)
+}
+
+func TestSlotDescription(t *testing.T) {
+	testCases := []struct {
+		slot Slot
+		want string
+	}{
+		{SlotAuthentication, "Authentication"},
+		{SlotCardManagement, "Card Management"},
+		{SlotSignature, "Digital Signature"},
+		{SlotKeyManagement, "Key Management"},
+		{SlotCardAuthentication, "Card Authentication"},
+		{SlotAttestation, "Attestation"},
+		{SlotRetiredKeyManagement1, "Retired Key Management 1"},
+		{SlotRetiredKeyManagement9, "Retired Key Management 9"},
+		{SlotRetiredKeyManagement10, "Retired Key Management 10"},
+		{SlotRetiredKeyManagement20, "Retired Key Management 20"},
+		{Slot("zz"), "zz"},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.want, func(t *testing.T) {
+			assert.Equal(t, testCase.want, testCase.slot.Description())
+		})
+	}
+}
+
+func TestValidPIN(t *testing.T) {
+	testCases := []struct {
+		pin  string
+		want bool
+	}{
+		{"", false},
+		{"12345", false},
+		{"123456", true},
+		{"000000", true},
+		{"1234567", true},
+		{"12345678", true},
+		{"123456789", false},
+		{"abcdef", true},
+		{"ABCDEF", true},
+		{"aBcDeF", true},
+		{"12345a", true},
+		{"a1B2c3", true},
+		{"aB!dE7", true},
+		{"aB!dE789", true},
+		{"!@#$%^", true},
+		{"P@ss1w", true},
+		{"+123456", true},
+		{"12 456", false},
+		{"12345\n", false},
+		{"12345\t", false},
+		{"abcde\u00e9", false},
+		{"\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16", false},
+	}
+
+	for _, tc := range testCases {
+		assert.Equal(t, tc.want, validPIN(tc.pin), "PIN %q", tc.pin)
+	}
+}
+
+func TestValidPUK(t *testing.T) {
+	testCases := []struct {
+		puk  string
+		want bool
+	}{
+		{"", false},
+		{"1234567", false},
+		{"12345678", true},
+		{"00000000", true},
+		{"123456789", false},
+		{"abcdefgh", true},
+		{"ABCDEFGH", true},
+		{"aBcD123!", true},
+		{"1234 678", false},
+		{"1234567\n", false},
+		{"1234567\t", false},
+		{"abcde\u00e9", false},
+		{"\uFF11\uFF12\uFF13\uFF14\uFF15\uFF16\uFF17\uFF18", false},
+	}
+
+	for _, tc := range testCases {
+		assert.Equal(t, tc.want, validPUK(tc.puk), "PUK %q", tc.puk)
+	}
+}
+
+func TestValidSecret(t *testing.T) {
+	assert.True(t, validSecret("abc", 3, 3))
+	assert.False(t, validSecret("abcd", 3, 3))
+	assert.False(t, validSecret("ab", 3, 3))
+	assert.True(t, validSecret("~!@", 3, 3))
+	assert.False(t, validSecret("a c", 3, 3))
+	assert.False(t, validSecret("a\x7fb", 3, 3))
+}
+
+func TestValidatePIN(t *testing.T) {
+	assert.NoError(t, validatePIN(DefaultPIN))
+	assert.Equal(t, errInvalidPIN, validatePIN("1234"))
+	assert.ErrorContains(t, errInvalidPIN, "6 to 8")
+	assert.ErrorContains(t, errInvalidPIN, "letters, digits, and symbols")
+}
+
+func TestValidatePUK(t *testing.T) {
+	assert.NoError(t, validatePUK(DefaultPUK))
+	assert.Equal(t, errInvalidPUK, validatePUK("1234"))
+	assert.ErrorContains(t, errInvalidPUK, "exactly 8")
+}
+
+func TestGetSlot(t *testing.T) {
+	testCases := []struct {
+		name string
+		slot Slot
+	}{
+		{SlotCardAuthentication.String(), SlotCardAuthentication},
+		{SlotSignature.String(), SlotSignature},
+		{SlotKeyManagement.String(), SlotKeyManagement},
+		{SlotAuthentication.String(), SlotAuthentication},
+		{SlotCardManagement.String(), SlotCardManagement},
+		{SlotAttestation.String(), SlotAttestation},
+		{SlotRetiredKeyManagement1.String(), SlotRetiredKeyManagement1},
+		{SlotRetiredKeyManagement6.String(), SlotRetiredKeyManagement6},
+		{SlotRetiredKeyManagement10.String(), SlotRetiredKeyManagement10},
+		{SlotRetiredKeyManagement16.String(), SlotRetiredKeyManagement16},
+		{SlotRetiredKeyManagement20.String(), SlotRetiredKeyManagement20},
+		{"anything else", SlotSignature},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			slot := GetSlot(testCase.name)
+			assert.Equal(t, testCase.slot, slot)
+		})
+	}
+}

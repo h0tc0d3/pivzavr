@@ -1,0 +1,41 @@
+#compdef pivzavr
+#
+# zsh completion for pivzavr.
+#
+# Install this file as _pivzavr in a directory of $fpath, for example
+#   /usr/share/zsh/site-functions/_pivzavr
+# or add the directory that holds it to fpath before compinit runs.
+
+_pivzavr_slots=(9a 9b 9c 9d 9e 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 f9)
+
+_pivzavr() {
+    _arguments -s -S \
+        '(-h --help)'{-h,--help}'[print the help message]' \
+        '(-V --version)'{-V,--version}'[print the version of pivzavr and exit]' \
+        '(-s --sign)'{-s,--sign}'[make a signature]' \
+        '--verify[verify a signature]' \
+        '--reset[restore the factory state of the smart card]' \
+        '--unlock[unlock the smart card PIN with the PUK]' \
+        '--set-pin[replace the smart card PIN]' \
+        '--set-puk[replace the smart card PUK]' \
+        '--set-chuid[write a new Card Holder Unique Identifier]' \
+        '--set-ccc[write a new Card Capability Container]' \
+        '--set-management-key=-[replace the card management key]::algorithm:(AES128 AES192 AES256)' \
+        '--protect=-[store the new management key on the smart card]::protect:(0 1)' \
+        '--random[generate the new card management key]' \
+        '(-w --slot)'{-w,--slot}'[choose a PIV slot]:slot:(${_pivzavr_slots})' \
+        '(-p --print)'{-p,--print}'[print the certificate with its fingerprint and details]' \
+        '(-i --info)'{-i,--info}'[print device information and active PIV slots]' \
+        '--update-trust[rebuild the trust store]' \
+        '(-u --local-user)'{-u,--local-user}'[use USER-ID to sign]:user:_files' \
+        '(-b --detach-sign)'{-b,--detach-sign}'[make a detached signature]' \
+        '(-a --armor)'{-a,--armor}'[create ascii armored output]' \
+        '--clearsign[make a clear text signature of a text file]' \
+        '(-o --output)'{-o,--output}'[write the signature to FILE]:file:_files' \
+        '--ext[extension of the signature file]:extension:(sig sign sgn p7s p7m asc pem)' \
+        '--status-fd[write special status strings to the file descriptor n]:descriptor:(1 2)' \
+        '(-t --timestamp-authority)'{-t,--timestamp-authority}'[URL of an RFC 3161 timestamp authority]:url:' \
+        '*:file:_files'
+}
+
+_pivzavr "$@"

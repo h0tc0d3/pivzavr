@@ -1,0 +1,62 @@
+name: build
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: "Build"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+    - uses: actions/checkout@v6
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version: stable
+
+    - if: ${{ matrix.os == 'ubuntu-latest' }}
+      name: "Install the smart card tools"
+      run: |
+        sudo apt update
+        sudo apt install -y pcscd pcsc-tools opensc-pkcs11
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Build without cgo
+      run: CGO_ENABLED=0 go build -v ./...
+
+    - name: Vet without cgo
+      run: CGO_ENABLED=0 go vet ./...
+
+    - if: ${{ matrix.os == 'ubuntu-latest' }}
+      name: "Cross-compile without cgo"
+      run: |
+        set -e
+        # FreeBSD needs a flag for the fake C runtime of purego, which its
+        # support notes document. openbsd is built as well: its dynamic loader is
+        # one that the PC/SC and PKCS#11 bindings do not cover, so it checks that
+        # the build which leaves both out keeps working.
+        freebsd_flags="-gcflags=github.com/ebitengine/purego/internal/fakecgo=-std"
+        for target in darwin/amd64 darwin/arm64 freebsd/amd64 linux/386 linux/arm64 openbsd/amd64 windows/amd64; do
+          os=${target%/*}
+          arch=${target#*/}
+          flags=""
+          if [ "$os" = "freebsd" ]; then
+            flags="$freebsd_flags"
+          fi
+          GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -v $flags ./...
+        done
+
+    - name: Test
+      run: go test -v ./...
